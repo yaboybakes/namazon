@@ -10,6 +10,7 @@ create table `products` (
   primary key (`id`)
 );
 
+SET SQL_SAFE_UPDATES = 0;
 
 insert into products(product_name,department_name,price,quantity)
 VALUES
