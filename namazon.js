@@ -1,98 +1,78 @@
-var mysql = require('mysql');
-var inquirer = require('inquirer');
+var mysql = require("mysql");
+var inquirer = require("inquirer");
 
 var connection = mysql.createConnection({
     host: "localhost",
     port: 3306,
-    user: "root", //Your username
-    password: "", //Your password
+    user: "root",
+    password: "",
     database: "bamazon"
 })
-
-var options = [];
-var availability = [];
-var product = "";
-var amount = 0;
-var price = [];
-
 
 connection.connect(function(err) {
     if (err) throw err;
     console.log("connected as id " + connection.threadId);
-    preload();
-})
-
-
-var preload = function() {
-
-connection.query('SELECT * FROM products', function(err, res) {
-    if (err) throw err;
-    for (var i = 0;i < res.length; i++) {
-      var title = "";
-      title += res[i].product_name;
-      options.push(title);
-      availability.push(res[i].quantity);
-      price.push(parseFloat(res[i].price));
-    }
-    startProcess();
 });
+var bamazon = {
+    questions: [{
+        type: 'input',
+        name: 'id',
+        message: "Type the item number of the product you would like to buy:",
+    }, {
+        type: 'input',
+        name: 'quantity',
+        message: "Type the quantity of the item you would like to buy:",
+    }],
+    getInventory: function() {
+        connection.query("SELECT * FROM products", function(error, results) {
 
-}
+            if (error) throw err;
+            for (var i = 0; i < results.length; i++) {
+                console.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+                console.log("Item: " + results[i].id + " | Name: " + results[i].product_name + " | Department: " + results[i].department_name + " | Price: " + results[i].price + " | Quantity left: " + results[i].quantity);
+                console.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+            };
+            bamazon.sellProducts();
+        });
+    },
 
+    sellProducts: function() {
+        inquirer.prompt(bamazon.questions).then(function(answers) {
+            var id = answers.id;
+            var quantity = answers.quantity;
+            bamazon.buyProduct(id, quantity);
+        });
+    },
 
-var startProcess = function() {
-  inquirer.prompt({
+    buyProduct: function(id, quantity) {
+        var stock;
+        var totalPrice;
 
-    /* Pass your questions in here */
-    name: "product",
-    type: "rawlist",
-    message: "Please choose the ID of the product you would like to purchase.",
-    choices: options
+        connection.query("SELECT * FROM products WHERE ID = ?", [id], function(err, results) {
+            if (err) throw err;
+            stock = results[0].quantity;
+            item = results[0].product_name;
+            price = results[0].price;
 
-  }).then(function(answer) {
-      // Use user feedback for... whatever!!
-      product += answer.product;
-      sellProcess();
-  });
-}
+            if (quantity <= stock) {
+                stock -= quantity;
+                price *= quantity;
 
-var sellProcess = function() {
-    inquirer.prompt({
-      name: "quantity",
-      type: "input",
-      message: "Great choice! How many would you like to buy?"
-    }).then(function(answer) {
-      amount = answer.quantity;
-      orderProcess();
-    });
-}
-
-var orderProcess = function() {
-
-
-
-  var stockNumber = options.indexOf(product);
-  var inStock = availability[stockNumber];
-
-  if (amount > inStock) {
-    console.log("Insufficient quantity! Starting new order process");
-    options = [];
-    product = "";
-    amount = 0;
-    availability = [];
-    price = [];
-    preload();
-  } else {
-    var newStock = inStock-amount;
-    console.log("Your order total is: " + parseFloat(amount * price[stockNumber]));
-    var query = 'UPDATE products SET quantity=? WHERE product_name=?';
-    connection.query(query, [newStock, product], function(err, res) {
-      options = [];
-      product = "";
-      amount = 0;
-      availability = [];
-      price = [];
-      preload();
-    });
-  }
-}
+                connection.query("UPDATE products SET ? WHERE ?", [{
+                        quantity: stock
+                    }, {
+                        id: id
+                    }],
+                    function(err, results) {
+                        console.log("~~~~~~Receipt~~~~~~")
+                        console.log("Product: " + item + " | Amount purchased: " + quantity + " | Total Price: " + "$" + price);
+                        bamazon.getInventory();
+                    });
+            } else {
+                console.log("Sorry, we do not have that amount in stock.")
+                bamazon.getInventory();
+            }
+        });
+    },
+};
+bamazon.getInventory();
